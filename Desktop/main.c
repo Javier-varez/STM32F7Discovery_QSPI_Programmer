@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
 				return;
 			}
 			
-			int serialP = open("/dev/ttyACM0", O_RDWR | O_NOCTTY );
+			int serialP = open("/dev/ttyACM0", O_RDWR | O_NOCTTY | O_NDELAY);
 	
 			configureSerialPort(serialP);
 			
@@ -36,16 +36,16 @@ int main(int argc, char *argv[]) {
 			if (!n) {printf("Didn't acknowledge!\n"); close (serialP); return;}
 			else if (ACK = 0xAA) {
 				printf("ACK is correct, sending length and addr\n");
-				uint8_t data[] = {0x0f, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00};	
+				uint8_t data[] = {0x00, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00};	
 				n = write(serialP, data, 8);
 				if (n != 8) {printf("Didn't write lenght and addr!\n"); close (serialP); return;}
 
 				uint8_t data_out[4096];
-				n = read(serialP, data_out, 0x0f);
-				if (n != 0x0f) {printf("Didn't receive all data!!\n"); close (serialP); return;}
+				n = read(serialP, data_out, 1);
+				if (n != 1) {printf("Didn't receive all data!!\n"); close (serialP); return;}
 
-				n = write(destination, data_out, 0x0f);
-				if (n != 0x0f) {printf("Error writing to file\n"); close (serialP); return;}
+				n = write(destination, data_out, 1);
+				if (n != 1) {printf("Error writing to file\n"); close (serialP); return;}
 			}
 			else {printf("Incorrect ACK\n"); close (serialP); return;}
 		}
@@ -62,13 +62,14 @@ void configureSerialPort(int fd) {
 	struct termios options;
 
 	tcgetattr(fd, &options);
-	cfsetispeed(&options, 9600);
-	cfsetospeed(&options, 9600);
+	cfsetispeed(&options, B9600);
+	cfsetospeed(&options, B9600);
 
 	options.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
-        | INLCR | IGNCR | ICRNL | IXON);
-	options.c_oflag &= ~OPOST; 
-	options.c_cflag |= (CLOCAL | CREAD);
+        | INLCR | IGNCR | ICRNL | IXON | INPCK | IUCLC | IXON);
+	options.c_lflag &= ~ICANON;
+	options.c_oflag &= ~(OPOST | ONLCR | OCRNL | ONOCR | ONLRET | OFILL); 
+	options.c_cflag |= (CLOCAL | CREAD | CRTSCTS);
 	options.c_cflag &= ~PARENB;
 	options.c_cflag &= ~CSTOPB;
 	options.c_cflag &= ~CSIZE; /* Mask the character size bits */

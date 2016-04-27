@@ -20,24 +20,23 @@ def ReadMem(addr, length):
     ser.write(chr(0x30))
 
     ACK = ser.read(1);
-
-    if ACK == 0xAA:
+    if int(ACK.encode('hex'), 16) == 0xaa:
         print(hex(ord(ACK)))
-        ser.write((addr&(0xFF)) >> 0); 
-        ser.write((addr&(0xFF00)) >> 8); 
-        ser.write((addr&(0xFF0000)) >> 16); 
-        ser.write(0x00); 
-	
-        ser.write((addr&(0xFF)) >> 0); 
-        ser.write((addr&(0xFF00)) >> 8); 
-      	ser.write((addr&(0xFF0000)) >> 16); 
-        ser.write(0x00); 
+        ser.write(chr(((length-1)&(0xFF)) >> 0));
+        ser.write(chr(((length-1)&(0xFF00)) >> 8));
+        ser.write(chr(((length-1)&(0xFF0000)) >> 16));
+        ser.write(chr(0x00));
+
+        ser.write(chr((addr&(0xFF)) >> 0));
+        ser.write(chr((addr&(0xFF00)) >> 8));
+        ser.write(chr((addr&(0xFF0000)) >> 16));
+        ser.write(chr(0x00));
 
         with open("testfile.bin", "wb") as f:
             for index in range(length):
                 data = ser.read(1)
                 f.write(data)
-            
+
 
 # Main!
 ports = serial.tools.list_ports.comports()
@@ -55,15 +54,20 @@ index = int(raw_input('Insert destination port: '))
 ser = serial.Serial();
 
 ser.port = (puertos[index]).device
-ser.baudrate = 1152000
+ser.baudrate = 576000
 ser.bytesize = serial.EIGHTBITS #number of bits per bytes
 ser.parity = serial.PARITY_NONE #set parity check: no parity
 ser.stopbits = serial.STOPBITS_ONE #number of stop bits
-ser.timeout = 1
+ser.timeout = 10
 
 ser.open();
 
-ReadMem(0,1000)
+print(ser.in_waiting)
+
+addr = int(raw_input('Addr: '))
+length = int(raw_input('Length: '))
+
+ReadMem(addr,length)
 
 ser.close();
 
