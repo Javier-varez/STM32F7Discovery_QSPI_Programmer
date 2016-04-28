@@ -244,15 +244,16 @@ void QSPI_WriteMem() {
 	HAL_UART_Transmit(&USART_HANDLE, &ACK, 1, UART_TIMEOUT);
 
 	// Write Data
-	uint8_t buff;
-	for (i = 0; i <= length; i++) {
-		HAL_UART_Receive(&USART_HANDLE, &buff, 1, UART_TIMEOUT);
-		if (BSP_QSPI_Write(&buff, i+addr, 1) != QSPI_OK) {
+	uint8_t buff[0x1000];
+	for (i = 0; i <= length/0x1000; i++) {
+		if (length == i*0x1000) return;
+		if (HAL_UART_Receive(&USART_HANDLE, buff, 0x1000, UART_TIMEOUT)!= HAL_OK) return;
+		if (BSP_QSPI_Write(buff, i*0x1000 + addr, (length-i*0x1000 > 0x1000) ? 0x1000: length-i*0x1000) != QSPI_OK) {
 			return;
 		}
+		HAL_UART_Transmit(&USART_HANDLE, &ACK, 1, UART_TIMEOUT);
 	}
 }
-
 
 /* USER CODE END 4 */
 
