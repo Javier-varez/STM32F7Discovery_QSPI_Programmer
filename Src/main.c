@@ -246,11 +246,16 @@ void QSPI_WriteMem() {
 	// Write Data
 	uint8_t buff[0x1000];
 	for (i = 0; i <= length/0x1000; i++) {
+		// Control Extreme cases
+		if (length == 0) return;
 		if (length == i*0x1000) return;
+		// Receive data block
 		if (HAL_UART_Receive(&USART_HANDLE, buff, (length-i*0x1000 > 0x1000) ? 0x1000: length-i*0x1000, UART_TIMEOUT)!= HAL_OK) return;
+		// Commit block to memory
 		if (BSP_QSPI_Write(buff, i*0x1000 + addr, (length-i*0x1000 > 0x1000) ? 0x1000: length-i*0x1000) != QSPI_OK) {
 			return;
 		}
+		//Send Acknowledge signal
 		HAL_UART_Transmit(&USART_HANDLE, &ACK, 1, UART_TIMEOUT);
 	}
 }

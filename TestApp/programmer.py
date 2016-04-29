@@ -1,13 +1,14 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import serial
-import serial.tools.list_ports
-import os
 import sys
+import os
 import subprocess
+import getopt
 
+######## Configuration #########
+serialDev = '/dev/stlinkv2_console'
 
-# Definiciones de constantes
 openocdRuta = '/usr/local/share/openocd/scripts/'
 openocdInterface = 'interface/stlink-v2-1.cfg'
 openocdAdapterSpeed = '1800'
@@ -16,12 +17,16 @@ openocdTarget = 'target/stm32f7x.cfg'
 bpsUart = 576000
 
 CC = 'arm-none-eabi-'
-QSPISection = 'ExtFlashSection'#'.ExtQSPIFlashSection'
+QSPISection = '.ExtQSPIFlashSection'
+
+installationPath = '/opt/qspi_programmer/'
+
+pwd = os.getcwd()+'/'
 
 ## On my programs, QSPI section is named '.ExtQSPIFlashSection'
 ## On touchgfx programs, linker script defaults to 'ExtFlashSection'
 
-# Funciones!
+# Functions!
 
 def ReadMem(addr, length, outfile):
     # Write Key
@@ -112,7 +117,7 @@ def WriteMem(addr, length, infile):
                     ser.write(data)
                     ACK3 = ser.read(1)
                     if int(ACK3.encode('hex'), 16) != 0xAA:
-                        print('Error!!!')
+                        print('Error! timeout.')
                 if (length//0x1000)*0x1000 != length:
 		    print(str((length//0x1000)*0x1000))
 		    print(str(length))
@@ -120,31 +125,39 @@ def WriteMem(addr, length, infile):
                     ser.write(data)
                     ACK3 = ser.read(1)
                     if int(ACK3.encode('hex'), 16) != 0xAA:
-                        print('Error!!!')
+                        print('Error! timeout.')
 
 
 #####################
 ######  Main!  ######
 #####################
 
-# Get ports
-ports = serial.tools.list_ports.comports()
-
-i = 0
-puertos = []
-print('Available ports:')
-for port in ports:
-    print('[' + str(i) + ']: ' + port.device)
-    puertos.append(port)
-    i = i + 1
-
-# Choose destination port
-index = int(raw_input('Insert destination port: '))
+# Parse options
+inputfile = ''
+outputfile = ''
+op = 0
+try:
+    opts, args = getopt.getopt(sys.argv[1:],"dhi:o:",["dump","ifile=","ofile=","qspi-section="])
+except getopt.GetoptError:
+    print 'test.py -i <inputfile> -o <outputfile>'
+    sys.exit(2)
+for opt, arg in opts:
+    if opt == '-h':
+        print 'qspi_programmer.py [-h] [-d] [-i <inputfile>] [-o <outputfile>]'
+        sys.exit()
+    elif opt in ("-i", "--ifile"):
+        inputfile = arg.lstrip()
+    elif opt in ("-o", "--ofile"):
+        outputfile = arg.lstrip()
+    elif opt in ("-d", "--dump"):
+	op = 1
+    elif opt == "--qspi-section":
+	QSPISection = arg.lstrip()
 
 ser = serial.Serial();
 
 # Configure Port
-ser.port = (puertos[index]).device
+ser.port = serialDev
 ser.baudrate = bpsUart
 ser.bytesize = serial.EIGHTBITS #number of bits per bytes
 ser.parity = serial.PARITY_NONE #set parity check: no parity
@@ -152,53 +165,91 @@ ser.stopbits = serial.STOPBITS_ONE #number of stop bits
 ser.timeout = 10
 
 # Flash QSPI loader
-subprocess.call(['openocd', '-s', openocdRuta, '-f', openocdInterface, '-c', 'adapter_khz ' + openocdAdapterSpeed, '-f', openocdTarget, '-c', 'reset_config srst_only srst_nogate', '-c', 'init', '-c', 'targets', '-c', 'reset halt', '-c', 'program QSPI_Programmer.elf verify reset exit'])
+subprocess.call(['openocd', '-s', openocdRuta, \
+		 '-f', openocdInterface, \
+		 '-c', 'adapter_khz ' + openocdAdapterSpeed, \
+	 	 '-f', openocdTarget, \
+		 '-c', 'reset_config srst_only srst_nogate', \
+		 '-c', 'init', \
+		 '-c', 'targets', \
+		 '-c', 'reset halt', \
+		 '-c', 'program '+installationPath+'QSPI_Programmer.elf verify reset exit'])
+
+print('')
+print('')
+print('QSPI Programmer app was programmed via openocd')
 
 # Open Port
 ser.open();
 
-# Choose Operation
-print('-----------------')
-print('Select Operation:')
-print('[0]: Write Memory')
-print('[1]: Memory Dump')
+print('Serial port opened')
 
-op = int(raw_input('OP: '))
+# Choose Operation
+#print('-----------------')
+#print('Select Operation:')
+#print('[0]: Write Memory')
+#print('[1]: Memory Dump')
+
+#op = int(raw_input('OP: '))
 
 # Perform operations
 if op==1:
-    addr = int(raw_input('Addr: '))
-    length = int(raw_input('Length: '))
-    outfile = raw_input('Output filename: ')
-    ReadMem(addr, length, outfile)
+    addr = 0 # int(raw_input('Addr: '))
+    length = 8*1024*1024 # int(raw_input('Length: '))
+    if outputfile == '':
+	outputfile = a.out #default file name
+
+    ReadMem(addr, length, outputfile)
 else:
-    infile = raw_input('Input ELF filename: ')
+    if inputfile == "":
+	print('Error! No input file provided!')
+	sys.exit(2)
 	
     # Extract QSPI Flash Section
-    subprocess.call([CC+'objcopy', '--only-section='+QSPISection, '-O', 'binary', infile, '.tmpextflashdump'])
-
-    length = os.stat('.tmpextflashdump').st_size
+    subprocess.call([CC+'objcopy', \
+                     '--only-section='+QSPISection, \
+                     '-O', 'binary', \
+                     pwd+inputfile, \
+                     pwd+'.tmpextflashdump'])
+    
+    # Get section length
+    length = os.stat(pwd+'.tmpextflashdump').st_size
     print('File length = ' + str(length))
-    WriteMem(0, length, '.tmpextflashdump')
+
+    # Write data to memory
+    WriteMem(0, length, pwd+'.tmpextflashdump')
     
-    subprocess.call(['rm', './.tmpextflashdump'])
+    # Delete temp QSPI bin
+    subprocess.call(['rm', pwd+'.tmpextflashdump'])
     
-    # Remove internal QSPI section
-    subprocess.call([CC+'objcopy', '--remove-section='+QSPISection, infile, 'outputElf.elf'])
+    # Remove external QSPI section
+    subprocess.call([CC+'objcopy', \
+                     '--remove-section='+QSPISection, \
+                     pwd+inputfile, \
+                     pwd+'outputElf.elf'])
 
     # Load Internal Flash Contents
-    subprocess.call(['openocd', '-s', openocdRuta, '-f', openocdInterface, '-c', 'adapter_khz ' + openocdAdapterSpeed, '-f', openocdTarget, '-c', 'reset_config srst_only srst_nogate', '-c', 'init', '-c', 'targets', '-c', 'reset halt', '-c', 'program outputElf.elf verify reset exit'])
+    subprocess.call(['openocd', '-s', openocdRuta, \
+		     '-f', openocdInterface, \
+		     '-c', 'adapter_khz ' + openocdAdapterSpeed, \
+		     '-f', openocdTarget, 
+		     '-c', 'reset_config srst_only srst_nogate', \
+		     '-c', 'init', \
+		     '-c', 'targets', \
+                     '-c', 'reset halt', \
+                     '-c', 'program '+pwd+'outputElf.elf verify reset exit'])
 
-    subprocess.call(['rm', './outputElf.elf'])
+    # Delete temp internal ELF file
+    subprocess.call(['rm', pwd+'outputElf.elf'])
 
 # Close Serial port and exit
 print('')
 print('')
 print('Done!')
 print('Closing serial Port')
+ser.close();
 print('Exiting')
 
-ser.close();
 
 
 
