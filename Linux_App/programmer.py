@@ -9,15 +9,15 @@ import getopt
 ######## Configuration #########
 serialDev = '/dev/stlinkv2_console'
 
-openocdRuta = '/usr/local/share/openocd/scripts/'
+openocdRoute = '/usr/local/share/openocd/scripts/'
 openocdInterface = 'interface/stlink-v2-1.cfg'
 openocdAdapterSpeed = '1800'
 openocdTarget = 'target/stm32f7x.cfg'
 
-bpsUart = 576000
+bpsUart = 576000 ## Connection speed. Remember to update it on the STM32F7 firmware too.
 
-CC = 'arm-none-eabi-'
-QSPISection = '.ExtQSPIFlashSection'
+CC = 'arm-none-eabi-' ## Cross compiler
+QSPISection = '.ExtQSPIFlashSection' ## 
 
 installationPath = '/opt/qspi_programmer/'
 
@@ -136,14 +136,22 @@ def WriteMem(addr, length, infile):
 inputfile = ''
 outputfile = ''
 op = 0
+
+if len(sys.argv) == 1:
+    print ''
+    print 'usage:	qspi_programmer.py [-h] [-d] [-i <inputfile>] [-o <outputfile>] [--qspi-section <section>]'
+    sys.exit(2)
+
 try:
     opts, args = getopt.getopt(sys.argv[1:],"dhi:o:",["dump","ifile=","ofile=","qspi-section="])
 except getopt.GetoptError:
-    print 'test.py -i <inputfile> -o <outputfile>'
+    print ''
+    print 'usage:	qspi_programmer.py [-h] [-d] [-i <inputfile>] [-o <outputfile>] [--qspi-section <section>]'
     sys.exit(2)
 for opt, arg in opts:
     if opt == '-h':
-        print 'qspi_programmer.py [-h] [-d] [-i <inputfile>] [-o <outputfile>]'
+    	print ''
+    	print 'usage:	qspi_programmer.py [-h] [-d] [-i <inputfile>] [-o <outputfile>] [--qspi-section <section>]'
         sys.exit()
     elif opt in ("-i", "--ifile"):
         inputfile = arg.lstrip()
@@ -165,7 +173,7 @@ ser.stopbits = serial.STOPBITS_ONE #number of stop bits
 ser.timeout = 10
 
 # Flash QSPI loader
-subprocess.call(['openocd', '-s', openocdRuta, \
+subprocess.call(['openocd', '-s', openocdRoute, \
 		 '-f', openocdInterface, \
 		 '-c', 'adapter_khz ' + openocdAdapterSpeed, \
 	 	 '-f', openocdTarget, \
@@ -221,7 +229,7 @@ else:
                      pwd+'outputElf.elf'])
 
     # Load Internal Flash Contents
-    subprocess.call(['openocd', '-s', openocdRuta, \
+    subprocess.call(['openocd', '-s', openocdRoute, \
 		     '-f', openocdInterface, \
 		     '-c', 'adapter_khz ' + openocdAdapterSpeed, \
 		     '-f', openocdTarget, 
